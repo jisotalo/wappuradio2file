@@ -6,9 +6,9 @@
 #       Jussi Isotalo <j.isotalo91@gmail.com>
 #                 MIT license
 #
-#	                  Usage: 
-# bash wappuradio2file.sh /target/file.mp3 "today 21:00" 180
-# Saves 180 minutes starting at 21:00 today to file.mp3
+# Usage: 
+# bash wappuradio2file.sh /target/file.mp3 "today 21:00" "today 22:00"
+# Saves from 21:00 today to 22:00 today to file.mp3
 ###################################################
 
 
@@ -17,14 +17,14 @@
 
 # Calls something and kills it after given period of time
 # Ugly and simple
-# By Tomas Janousek @ http://lists.mplayerhq.hu/pipermail/mplayer-users/2007-February/065715.html
+# Originally by Tomas Janousek @ http://lists.mplayerhq.hu/pipermail/mplayer-users/2007-February/065715.html
 runfor(){
-  TIME=$1
+  end_time=$1
   shift
 
   "$@" &
   PID=$!
-  sleep $TIME
+  til "$end_time"
   kill $PID
   wait
 }
@@ -110,7 +110,7 @@ fi
 #Check that duration is given
 if [ -z "$3" ]
 then
-  echo "No 3rd argument (duration [minutes]) given. Exiting..."
+  echo "No 3rd argument (ending date) given. Exiting..."
   exit
 fi
 
@@ -123,21 +123,21 @@ then
   exit
 fi
 
-
-# Check if duration is number
-re='^[0-9]+$'
-if ! [[ $3 =~ $re ]] ; then
-  echo "Faulty duration $3 given. Exiting..."
+#Check if time is acceptable date format
+date -d "$3"  > /dev/null 2>&1
+if [ $? -eq "1" ]
+then
+  echo "Faulty date $3 given. Exiting..."
   exit
-fi  
+fi
 
-time_seconds=$(($3 * 60))
 
 # All ok!
 echo "----------------------------------------------------------"
-echo "  - Saving to file $1"
-echo "  - Waiting until $2"
-echo "  - Saving stream for $3 minutes ($time_seconds seconds)"
+echo "  - Saving to file $1.tmp.mp3"
+echo "  - Waiting for start until $2"
+echo "  - Saving until $3"
+echo "  - Running fixvbr afterwards and deleting .tmp.mp3 file"
 echo "----------------------------------------------------------"
 
 
@@ -149,13 +149,17 @@ echo "Starting.."
 
 #Lets save stream for given duration
 runfor \
-"$time_seconds" \
+"$3" \
 mplayer -cache 1024 \
 http://stream.wappuradio.fi:80/wappuradio.mp3 \
 -dumpstream \
--dumpfile "$1"
+-dumpfile "$1.tmp.mp3"
 
 echo "----------------------------------------------------------"
-echo "Done!"
-
+echo "Done. Now starting fixvbr"
+vbrfix "$1.tmp.mp3" "$1"
+echo "fixvbr done. Deleting temp file $1.tmp.mp3"
+rm -f "$1.tmp.mp3"
+echo "----------------------------------------------------------"
+echo "All done!"
 
